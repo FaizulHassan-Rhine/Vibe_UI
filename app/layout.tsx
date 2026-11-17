@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {
   Caveat,
+  IBM_Plex_Mono,
   Inter,
   Inter_Tight,
   Newsreader,
@@ -58,6 +59,13 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-ibm-plex-mono",
+  display: "swap",
+});
+
 const notoSansJp = Noto_Sans_JP({
   subsets: ["latin"],
   weight: ["500", "800"],
@@ -67,9 +75,9 @@ const notoSansJp = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "Noa · Reelmark · Leon Vasari · Blendy",
+  title: "Noa · Reelmark · Leon Vasari · Blendy · Distill",
   description:
-    "Point-cloud portrait, Reelmark marketplace hero, Leon Vasari curved VHS archive, and Blendy smoothie slider.",
+    "Point-cloud portrait, Reelmark marketplace hero, Leon Vasari curved VHS archive, Blendy smoothie slider, and Distill AI-readability comparison.",
 };
 
 export default function RootLayout({
@@ -80,7 +88,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} ${interTight.variable} ${caveat.variable} ${newsreader.variable} ${notoSansJp.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} ${interTight.variable} ${caveat.variable} ${newsreader.variable} ${ibmPlexMono.variable} ${notoSansJp.variable}`}
     >
       <body>{children}</body>
     </html>

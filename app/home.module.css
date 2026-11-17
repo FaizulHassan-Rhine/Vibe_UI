@@ -1,0 +1,12 @@
+.pages {
+  display: block;
+}
+
+.pages > :global(section) {
+  min-height: 100svh;
+  min-height: 100dvh;
+  height: 100svh;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}

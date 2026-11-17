@@ -1,0 +1,1002 @@
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url("/fonts/kolibrie/archivo-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Playfair";
+  font-style: normal;
+  font-weight: 300 900;
+  font-stretch: 87.5% 112.5%;
+  font-display: swap;
+  src: url("/fonts/kolibrie/playfair-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Yellowtail";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/kolibrie/yellowtail-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Titan One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/kolibrie/titan-latin.woff2") format("woff2");
+}
+
+.root {
+  --cream: #faf3e4;
+  --ink: #141110;
+  --tomato: #ef4a23;
+  --butter: #ffd46e;
+  --sky: #8fc6e8;
+  --pink: #f6a9c2;
+  --sage: #b9c48a;
+  --white: #ffffff;
+  --night: #141110;
+  --page: var(--cream);
+  --ease: cubic-bezier(0.65, 0.05, 0, 1);
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-serif: "Playfair", Georgia, serif;
+  --font-script: "Yellowtail", cursive;
+  --font-sticker: "Titan One", system-ui, sans-serif;
+
+  color: var(--ink);
+  background: var(--page);
+  font-family: var(--font-display);
+  overflow-x: clip;
+  min-height: 100svh;
+  min-height: 100vh;
+  transition: background-color 0.7s var(--ease);
+}
+
+.root :global(*),
+.root :global(*::before),
+.root :global(*::after) {
+  box-sizing: border-box;
+}
+
+.root :global(a) {
+  color: inherit;
+  text-decoration: none;
+}
+
+.root :global(img) {
+  display: block;
+  max-width: 100%;
+}
+
+.root :global(button) {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.root.themeDark {
+  --page: var(--night);
+  --ink: var(--cream);
+  background-color: var(--night);
+  color: var(--cream);
+}
+
+.root.themeDark .navPill,
+.root.themeDark .navContact {
+  background: rgba(255, 255, 255, 0.92);
+  color: #141110;
+}
+
+.main {
+  opacity: 0;
+  transition: opacity 0.01s linear;
+}
+
+/* Pin/peel breaks if sections are content-visibility skipped */
+.root :global(main > section) {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
+
+.root.isReady .main {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.root :global([data-text-reveal]),
+.root :global([data-scroll-reveal]) {
+  opacity: 0;
+}
+
+.root.isReady :global([data-text-reveal]),
+.root.isReady :global([data-scroll-reveal]),
+.root.reduced :global([data-text-reveal]),
+.root.reduced :global([data-scroll-reveal]) {
+  opacity: 1;
+  visibility: visible;
+}
+
+.root :global(.line) {
+  padding-bottom: 0.06em;
+  margin-bottom: -0.06em;
+}
+
+/* ── Wipe ── */
+.wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: clip;
+}
+
+.wipe[data-transition-ready] {
+  display: none;
+}
+
+.wipe svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wipe path {
+  fill: none;
+  stroke: var(--tomato);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0;
+}
+
+/* ── Cursor label ── */
+.cursorLabel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.cursorCard {
+  width: 9.5rem;
+  overflow: hidden;
+  background: var(--butter);
+  color: var(--ink);
+  transform: scale(0);
+  transition: transform 0.4s var(--ease);
+}
+
+.cursorLabel[data-cursor-marquee-status="active"] .cursorCard {
+  transform: scale(1);
+}
+
+.cursorTrack {
+  position: relative;
+  display: flex;
+  width: max-content;
+}
+
+.cursorTrack span {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  text-transform: uppercase;
+  font-size: 1.3rem;
+  padding: 0.375em 0.25em;
+  white-space: nowrap;
+  animation: kolMarquee 1s linear infinite;
+  animation-play-state: paused;
+}
+
+.cursorTrack span:nth-child(2) {
+  position: absolute;
+  left: 100%;
+  top: 0;
+}
+
+.cursorLabel[data-cursor-marquee-status="active"] .cursorTrack span {
+  animation-play-state: running;
+}
+
+@keyframes kolMarquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* ── Nav ── */
+.nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  pointer-events: none;
+}
+
+.nav > * {
+  pointer-events: auto;
+}
+
+.logo {
+  font-family: var(--font-script);
+  font-size: 3.6rem;
+  line-height: 1;
+  color: var(--tomato);
+  transform: rotate(-8deg);
+  transform-origin: left center;
+  margin-top: 0.2rem;
+}
+
+.navPill {
+  position: absolute;
+  left: 50%;
+  top: 1.25rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 3rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  background: var(--white);
+}
+
+.navLink {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.navUnderline {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: 0.5em;
+  color: var(--tomato);
+  overflow: visible;
+}
+
+.navContact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  background: var(--white);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--tomato);
+}
+
+/* ── Type ── */
+.heroHeadline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  font-size: 9rem;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.8em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sectionHeadline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  font-size: 8rem;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.8em;
+}
+
+.alt {
+  font-family: var(--font-serif);
+  font-weight: 300;
+  font-stretch: 87.5%;
+  font-variation-settings: "wght" 300, "wdth" 87.5, "opsz" 120;
+  letter-spacing: -0.035em;
+}
+
+.eyebrowM {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-stretch: 87.5%;
+  font-variation-settings: "wght" 500, "wdth" 87.5, "opsz" 40;
+  font-size: 2.5rem;
+  letter-spacing: -0.03em;
+  line-height: 1em;
+}
+
+.eyebrowS {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-stretch: 87.5%;
+  font-variation-settings: "wght" 500, "wdth" 87.5, "opsz" 40;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+  line-height: 1em;
+}
+
+.para {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-stretch: 100%;
+  font-variation-settings: "wght" 400, "wdth" 100, "opsz" 20;
+  font-size: 1.25rem;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.heroVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 50%;
+  z-index: 0;
+}
+
+.cursorCardHero {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16rem;
+  height: 16rem;
+  translate: -50% -50%;
+  overflow: hidden;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.cursorMedia {
+  position: absolute;
+  inset: 0;
+  scale: 1.2;
+}
+
+.cursorMedia .crop {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.cursorMedia .crop[data-on="1"] {
+  opacity: 1;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  margin-top: -3rem;
+  pointer-events: none;
+}
+
+.heroContent :global(a) {
+  pointer-events: auto;
+}
+
+.reelLink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375em;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-stretch: 87.5%;
+  font-variation-settings: "wght" 500, "wdth" 87.5, "opsz" 40;
+  font-size: 2.1rem;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.reelText {
+  position: relative;
+}
+
+.reelUnderline {
+  position: absolute;
+  left: 0;
+  top: 118%;
+  width: 100%;
+  height: 0.6em;
+  color: var(--tomato);
+}
+
+.reelArrow {
+  width: 1em;
+  height: 1em;
+  background: var(--tomato);
+  color: var(--white);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.reelArrowInner {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.525s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.reelLink:hover .reelArrowInner {
+  transform: translateY(-100%);
+}
+
+.reelArrowInner svg {
+  width: 0.7em;
+  height: 0.7em;
+  flex: 0 0 1em;
+  margin: 0.15em auto;
+  display: block;
+}
+
+.marquee {
+  position: absolute;
+  left: 0;
+  bottom: 1.5rem;
+  width: 100%;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.marqueeWrap {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  margin-left: -10%;
+}
+
+.marqueeCollection {
+  flex: 0 0 auto;
+}
+
+.marqueeCollection {
+  display: flex;
+  width: max-content;
+}
+
+.marqueeItem {
+  width: 9rem;
+  height: 7rem;
+  margin: 0 2.5rem;
+  display: grid;
+  place-items: center;
+  color: var(--tomato);
+}
+
+.marqueeItem svg {
+  width: 60%;
+  height: 60%;
+}
+
+/* ── Crop ── */
+.crop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  container-type: size;
+  background: #e9dcc6;
+}
+
+.crop :global(.cell) {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  aspect-ratio: var(--ar);
+  width: max(100cqw, calc(100cqh * var(--ar)));
+}
+
+.crop :global(.cell img) {
+  position: absolute;
+  max-width: none;
+}
+
+/* ── Work / Latest drops ── */
+.work {
+  position: relative;
+  /* Scroll runway is set in JS from card count; fallback keeps room for peels */
+  min-height: 500vh;
+}
+
+.workPin {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 38fr 62fr;
+  gap: 2rem;
+  padding: 0 3rem 0 5rem;
+  align-items: center;
+  overflow: hidden;
+}
+
+.workCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  justify-content: center;
+}
+
+.workCopy .eyebrowS {
+  max-width: 26rem;
+}
+
+.stage {
+  position: relative;
+  height: 100%;
+  perspective: 1600px;
+}
+
+.stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  perspective: 1600px;
+}
+
+.slide {
+  position: absolute;
+  aspect-ratio: 1.75;
+  width: min(80vh, 52vw);
+  left: 50%;
+  top: calc(50% - 5vh);
+  /* Centering via GSAP xPercent/yPercent so peel y/z aren't fighting CSS translate */
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* Desktop stack mode — forced by JS so cards always share one slot */
+.stack.isDesktopStack {
+  display: block !important;
+  flex-direction: unset !important;
+  gap: 0 !important;
+}
+
+.stack.isDesktopStack .slide {
+  position: absolute !important;
+  left: 50% !important;
+  top: calc(50% - 5vh) !important;
+  width: min(80vh, 52vw) !important;
+  margin: 0 !important;
+}
+
+.card {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 1.75vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.cardOverlay {
+  position: absolute;
+  inset: 1.75vh;
+  background: linear-gradient(#0000 55%, #0006);
+  pointer-events: none;
+}
+
+.cardTitle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.4em;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 800, "wdth" 72;
+  text-transform: uppercase;
+  font-size: 7.5vh;
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+  color: var(--cream);
+  text-shadow: 0 0.05em 0.3em rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.badge {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  width: 9rem;
+  height: 9rem;
+  z-index: 5;
+}
+
+.badge svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Team ── */
+.team {
+  position: relative;
+  height: 340vh;
+  color: var(--ink);
+  transition: color 0.7s var(--ease);
+}
+
+.root.themeDark .team {
+  color: var(--cream);
+}
+
+.teamSticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.teamTitle {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4rem;
+  text-align: center;
+}
+
+.teamHeadline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  font-size: 7rem;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.8em;
+}
+
+.teamTitle .para {
+  max-width: 26rem;
+}
+
+.stamp {
+  position: absolute;
+  width: 10rem;
+  left: -3rem;
+  top: -8rem;
+  transform: rotate(-10deg);
+}
+
+.stamp svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.photos {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.photo {
+  position: absolute;
+  aspect-ratio: 4 / 5;
+  transform-origin: center center;
+  pointer-events: auto;
+  will-change: transform;
+}
+
+.photoLeft {
+  left: var(--off);
+}
+
+.photoRight {
+  right: var(--off);
+}
+
+.photoName {
+  position: absolute;
+  left: 50%;
+  bottom: -0.9rem;
+  transform: translateX(-50%) rotate(var(--nr, 0deg));
+  font-family: var(--font-sticker);
+  font-size: 3.4rem;
+  color: var(--tomato);
+  -webkit-text-stroke: 0.32rem var(--cream);
+  paint-order: stroke fill;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.photoCaption {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.7rem;
+  background: var(--cream);
+  color: #141110;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 72%;
+  font-variation-settings: "wght" 700, "wdth" 72;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+  pointer-events: none;
+}
+
+/* ── Draw line SVG ── */
+.drawLine svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.drawLine path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Responsive ── */
+@media (max-width: 991px) {
+  .navPill {
+    display: none;
+  }
+
+  .heroHeadline {
+    font-size: 6.4rem;
+  }
+
+  .sectionHeadline {
+    font-size: 6rem;
+  }
+
+  .teamHeadline {
+    font-size: 6rem;
+  }
+
+  .work {
+    min-height: 0 !important;
+  }
+
+  .workPin {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    padding: 6rem 1.5rem 4rem;
+    gap: 3rem;
+  }
+
+  .stack:not(.isDesktopStack) {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .stack:not(.isDesktopStack) .slide {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: 100%;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .cardOverlay {
+    inset: 1rem;
+  }
+
+  .cardTitle {
+    font-size: 3.4rem;
+    bottom: 1.6em;
+  }
+
+  .badge {
+    display: none;
+  }
+
+  .team {
+    height: 260vh;
+  }
+}
+
+@media (max-width: 600px) {
+  .nav {
+    padding: 1rem;
+  }
+
+  .logo {
+    font-size: 2.6rem;
+  }
+
+  .navContact {
+    height: 2.5rem;
+    font-size: 0.95rem;
+    padding: 0 0.9rem;
+  }
+
+  .heroHeadline {
+    font-size: 4rem;
+  }
+
+  .sectionHeadline,
+  .teamHeadline {
+    font-size: 4.2rem;
+  }
+
+  .eyebrowM {
+    font-size: 1.75rem;
+  }
+
+  .eyebrowS {
+    font-size: 1.5rem;
+  }
+
+  .heroContent {
+    gap: 1.4rem;
+    margin-top: 5rem;
+    padding: 0 1rem;
+  }
+
+  .reelLink {
+    font-size: 1.6rem;
+  }
+
+  .heroVideo {
+    object-position: 6% 50%;
+  }
+
+  .cursorCardHero {
+    width: 7.5rem;
+    height: 7.5rem;
+    top: 13%;
+    left: 50%;
+    translate: -50% 0;
+    transform: rotate(-5deg);
+    opacity: 1 !important;
+  }
+
+  .marqueeItem {
+    width: 5.5rem;
+    height: 5rem;
+    margin: 0 1rem;
+  }
+
+  .cardTitle {
+    font-size: 2rem;
+  }
+
+  .stamp {
+    width: 6rem;
+    left: 0;
+    top: -5rem;
+  }
+
+  .teamTitle {
+    padding: 0 1.5rem;
+  }
+
+  .photo {
+    width: 8rem !important;
+  }
+
+  .photo:nth-child(odd) {
+    --off: -1rem !important;
+  }
+
+  .photo:nth-child(even) {
+    --off: 4rem !important;
+  }
+
+  /* Alternate left/right tops so only one photo sits at any height */
+  .photo:nth-child(1) { top: 1% !important; }
+  .photo:nth-child(2) { top: 17% !important; }
+  .photo:nth-child(3) { top: 33% !important; }
+  .photo:nth-child(4) { top: 49% !important; }
+  .photo:nth-child(5) { top: 65% !important; }
+  .photo:nth-child(6) { top: 81% !important; }
+  .photo:nth-child(7) { top: 9% !important; }
+  .photo:nth-child(8) { top: 25% !important; }
+  .photo:nth-child(9) { top: 41% !important; }
+  .photo:nth-child(10) { top: 57% !important; }
+  .photo:nth-child(11) { top: 73% !important; }
+  .photo:nth-child(12) { top: 89% !important; }
+
+  .photoName {
+    font-size: 1.9rem;
+    -webkit-text-stroke-width: 0.22rem;
+  }
+
+  .photoCaption {
+    display: none;
+  }
+}
+
+.root.reduced .team {
+  height: auto;
+}
+
+.root.reduced .teamSticky {
+  position: relative;
+  height: auto;
+  padding: 8rem 0 4rem;
+}
+
+.root.reduced .photos {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.root.reduced .photo {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  transform: none !important;
+}

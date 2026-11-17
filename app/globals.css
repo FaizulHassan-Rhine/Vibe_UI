@@ -41,3 +41,29 @@ main > section {
   content-visibility: auto;
   contain-intrinsic-size: 100svh;
 }
+
+/* Distill belt/canvas needs live layout every frame */
+main > section#distill {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
+
+/* Home: each section snaps like its own page */
+html.home-pages {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+html.home-pages body {
+  overflow-x: hidden;
+}
+
+/* Lenis (Kolibrie) */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
