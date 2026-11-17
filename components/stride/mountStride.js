@@ -584,28 +584,28 @@ export function mountStride(root, styles) {
     if (stormBuilt) return;
     stormBuilt = true;
     const fi = ((Math.round(target) % 5) + 5) % 5;
-    const COUNT = 42;
+    // Mid density: readable blast without covering the pack.
+    const COUNT = 22;
     for (let i = 0; i < COUNT; i++) {
-      const useOwn = Math.random() < 0.75;
+      const useOwn = Math.random() < 0.8;
       const bi = useOwn ? FLAVORS[fi].bit : Math.floor(Math.random() * 5);
       const el = document.createElement("div");
       el.className = styles.stormPiece || "";
-      const crop = sheetCrop(BITS[bi], 0);
-      Object.assign(el.style, crop);
+      Object.assign(el.style, sheetCrop(BITS[bi], 0));
       el.style.position = "absolute";
       el.style.opacity = "0";
       el.style.pointerEvents = "none";
       stormEl.appendChild(el);
-      // Bias angles into side arcs so the blast rings the pack like the reference.
-      const arcBias = Math.random() < 0.62 ? (Math.random() < 0.5 ? Math.PI : 0) : Math.PI * 0.5;
-      const a = arcBias + (Math.random() - 0.5) * 1.35 + (Math.random() < 0.5 ? 0 : Math.PI);
+      // Even ring + light jitter — avoids clumps and huge empty gaps.
+      const a = (i / COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
+      const band = i % 3; // 0 near, 1 mid, 2 outer
       stormPieces.push({
         el,
         a,
-        ph: i / COUNT + Math.random() * 0.04,
-        spin: (Math.random() < 0.5 ? -1 : 1) * (220 + Math.random() * 280),
-        size: 0.85 + Math.random() * 1.15,
-        near: Math.random() < 0.35,
+        ph: i / COUNT,
+        spin: (i % 2 === 0 ? -1 : 1) * (160 + Math.random() * 180),
+        size: band === 0 ? 0.9 + Math.random() * 0.25 : 0.7 + Math.random() * 0.35,
+        orbit: band === 0 ? 0.55 + Math.random() * 0.08 : band === 1 ? 0.72 + Math.random() * 0.08 : 0.88 + Math.random() * 0.08,
       });
     }
   }
@@ -618,28 +618,25 @@ export function mountStride(root, styles) {
       return;
     }
     ensureStorm();
-    // Full-viewport blast radius — pieces should ring the whole screen mid-storm.
-    const R = 0.72 * Math.hypot(vw, vh);
-    const base = 0.12 * Math.min(vw, vh);
+    // Peak sits in a mid ring around the pack — not on top of it, not at the edges.
+    const R = 0.48 * Math.hypot(vw, vh);
+    const base = 0.095 * Math.min(vw, vh);
     const cx = vw / 2;
     const cy = vh / 2;
-    // Stay opaque through the heart of the burst; only taper at the very end
-    // when the bar starts dropping into Shop.
-    const gateIn = clamp(qStorm / 0.08, 0, 1);
-    const gateOut = clamp((1 - qStorm) / 0.22, 0, 1);
+    const gateIn = clamp(qStorm / 0.09, 0, 1);
+    const gateOut = clamp((1 - qStorm) / 0.24, 0, 1);
     stormPieces.forEach((p) => {
-      const s = clamp((qStorm - 0.28 * p.ph) / 0.72, 0, 1);
+      const s = clamp((qStorm - 0.18 * p.ph) / 0.7, 0, 1);
       if (s <= 0.001) {
         p.el.style.opacity = "0";
         return;
       }
-      const nearMul = p.near ? 0.42 : 1;
-      const radius = (0.04 + Math.pow(s, 1.15) * 0.96) * R * nearMul;
+      const radius = (0.14 + Math.pow(s, 1.1) * 0.72) * R * p.orbit;
       const x = cx + Math.cos(p.a) * radius;
-      const y = cy + Math.sin(p.a) * radius * 0.78;
-      const sc = (0.35 + 1.85 * Math.min(1, s * 1.15)) * p.size * base;
-      const pulse = Math.sin(Math.PI * Math.min(1, s * 1.05));
-      const op = pulse * gateIn * Math.max(0.15, gateOut) * (p.near ? 0.95 : 1);
+      const y = cy + Math.sin(p.a) * radius * 0.8;
+      const sc = (0.4 + 1.35 * s) * p.size * base;
+      const pulse = Math.sin(Math.PI * Math.min(1, s * 1.03));
+      const op = pulse * gateIn * Math.max(0.2, gateOut);
       p.el.style.width = `${sc}px`;
       p.el.style.height = `${sc}px`;
       p.el.style.left = `${x}px`;

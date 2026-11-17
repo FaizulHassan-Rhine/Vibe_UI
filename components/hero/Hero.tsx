@@ -34,6 +34,7 @@ export default function Hero() {
   return (
     <section
       ref={rootRef}
+      id="noa"
       className={styles.hero}
       data-phase="loading"
       aria-label="Noa Ellsworth"
