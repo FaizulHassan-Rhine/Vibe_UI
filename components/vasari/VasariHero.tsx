@@ -33,13 +33,6 @@ export default function VasariHero() {
       <div className={styles.grain} aria-hidden="true" />
       <div className={styles.probe} data-probe aria-hidden="true" />
 
-      <div className={`${styles.kanji} ${styles.kanjiLeft}`} aria-hidden="true">
-        映画
-      </div>
-      <div className={`${styles.kanji} ${styles.kanjiRight}`} aria-hidden="true">
-        の記憶
-      </div>
-
       <div className={styles.floor} aria-hidden="true" />
 
       <div className={styles.shelf} data-shelf>
@@ -72,26 +65,15 @@ export default function VasariHero() {
         </svg>
       </button>
 
-      <div className={styles.timeline} data-timeline>
-        <div className={styles.tlLine} />
-        <div className={styles.tlTicks} data-ticks />
-        <div className={styles.tlDot} data-dot />
-        <button className={styles.tlHit} type="button" data-tl-hit data-btn aria-label="Jump to year" />
-      </div>
-
       <div className={styles.cursor} data-cursor aria-hidden="true">
         <div className={styles.curRing} />
         <div className={styles.curDot} />
-        <div className={styles.curLabel}>
-          OPEN
-          <br />
-          開く
-        </div>
+        <div className={styles.curLabel}>OPEN</div>
       </div>
 
       <div className={styles.detail} data-detail>
         <button className={`${styles.detailClose} ${styles.box} ${styles.lbl}`} type="button" data-detail-close data-btn>
-          Close / 閉じる
+          Close
         </button>
         <div className={`${styles.detailBrand} ${styles.lbl}`}>Leon Vasari —— Film Archive</div>
         <div className={styles.detailInner}>
@@ -110,12 +92,12 @@ export default function VasariHero() {
             </div>
             <div className={styles.detailMask}>
               <p className={styles.detailCredit} data-d-credit>
-                Written and directed by Leon Vasari. 監督作品
+                Written and directed by Leon Vasari.
               </p>
             </div>
             <div className={styles.detailMask}>
               <button className={styles.detailWatch} type="button" data-btn data-d-watch>
-                Watch the Film / 映画を見る
+                Watch the Film
               </button>
             </div>
           </div>

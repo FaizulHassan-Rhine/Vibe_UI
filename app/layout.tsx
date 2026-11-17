@@ -67,9 +67,9 @@ const notoSansJp = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "Noa · Reelmark · Leon Vasari",
+  title: "Noa · Reelmark · Leon Vasari · Blendy",
   description:
-    "Point-cloud portrait, Reelmark marketplace hero, and Leon Vasari curved VHS archive.",
+    "Point-cloud portrait, Reelmark marketplace hero, Leon Vasari curved VHS archive, and Blendy smoothie slider.",
 };
 
 export default function RootLayout({

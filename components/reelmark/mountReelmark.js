@@ -407,8 +407,48 @@ export function mountReelmark(root) {
     }
   }
 
+  let visible = true;
+  function setSectionVisible(next) {
+    if (next === visible) return;
+    visible = next;
+    if (visible) {
+      if (!reducedMotion()) {
+        videos.forEach((v) => v?.play?.().catch(() => {}));
+        try {
+          clock.play();
+        } catch (_) {}
+      }
+      autoAnchorScroll = scroll;
+      autoAnchorTime = clock.currentTime || 0;
+      frame._last = performance.now();
+      if (!disposed) raf = requestAnimationFrame(frame);
+    } else {
+      cancelAnimationFrame(raf);
+      videos.forEach((v) => {
+        try {
+          v?.pause?.();
+        } catch (_) {}
+      });
+      try {
+        clock.pause();
+      } catch (_) {}
+      if (lightboxVideo) {
+        try {
+          lightboxVideo.pause();
+        } catch (_) {}
+      }
+    }
+  }
+
+  const io = new IntersectionObserver(
+    ([entry]) => setSectionVisible(!!entry?.isIntersecting),
+    { root: null, threshold: 0.08, rootMargin: "12% 0px" }
+  );
+  io.observe(root);
+  cleanups.push(() => io.disconnect());
+
   function frame() {
-    if (disposed) return;
+    if (disposed || !visible) return;
     raf = requestAnimationFrame(frame);
 
     const now = performance.now();
@@ -439,9 +479,12 @@ export function mountReelmark(root) {
 
     render();
 
-    const master = videos.find((v) => v && v.readyState >= 2 && v.duration);
-    if (master && !reducedMotion()) {
-      syncVideos(master.currentTime);
+    // Sync only the master → others every other frame to cut main-thread cost
+    if (!frame._syncToggle) frame._syncToggle = 0;
+    frame._syncToggle ^= 1;
+    if (frame._syncToggle) {
+      const master = videos.find((v) => v && v.readyState >= 2 && v.duration);
+      if (master && !reducedMotion()) syncVideos(master.currentTime);
     }
   }
 
@@ -569,20 +612,21 @@ export function mountReelmark(root) {
       );
     });
 
-    // Keep all videos locked to first
+    // Keep all videos locked to first (skip while section is off-screen)
     const syncTimer = setInterval(() => {
+      if (!visible) return;
       const master = videos[0];
       if (!master || !master.duration) return;
       for (let i = 1; i < videos.length; i++) {
         const v = videos[i];
         if (!v || !v.duration) continue;
-        if (Math.abs(v.currentTime - master.currentTime) > 0.1) {
+        if (Math.abs(v.currentTime - master.currentTime) > 0.12) {
           try {
             v.currentTime = master.currentTime;
           } catch (_) {}
         }
       }
-    }, 250);
+    }, 500);
     cleanups.push(() => clearInterval(syncTimer));
   } else {
     // posters only

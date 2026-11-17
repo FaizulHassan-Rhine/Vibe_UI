@@ -85,55 +85,12 @@ export function mountVasari(root) {
   const stage = root.querySelector("[data-stage]");
   const probe = root.querySelector("[data-probe]");
   const play = root.querySelector("[data-play]");
-  const ticksEl = root.querySelector("[data-ticks]");
-  const dot = root.querySelector("[data-dot]");
-  const tlHit = root.querySelector("[data-tl-hit]");
   const cursor = root.querySelector("[data-cursor]");
   const detail = root.querySelector("[data-detail]");
   const posterImg = root.querySelector("[data-poster-img]");
   const blotCircles = [...root.querySelectorAll("[data-blots] circle")];
 
   if (finePointer()) root.classList.add("fine-pointer");
-
-  // Timeline ticks 1955–1990
-  for (let y = 1955; y <= 1990; y++) {
-    const left = ((y - 1955) / 35) * 100;
-    const major = y % 5 === 0;
-    const tick = document.createElement("div");
-    tick.className = major
-      ? `${root.querySelector("[data-ticks]").parentElement.className.includes("timeline") ? "" : ""}`
-      : "";
-    // Use module-agnostic classes via data attrs + inline styles for ticks
-    tick.style.cssText = `position:absolute;top:12px;left:${left}%;width:1px;transform:translateX(-50%);background:#1F3FB0;height:${major ? 13 : 7}px;opacity:${major ? 0.75 : 0.4}`;
-    ticksEl.appendChild(tick);
-    if (major) {
-      const lab = document.createElement("div");
-      lab.textContent = String(y);
-      lab.style.cssText = `position:absolute;top:28px;left:${left}%;font-family:var(--font-inter-tight),system-ui,sans-serif;font-weight:500;font-size:9.5px;color:#1F3FB0;${
-        y === 1955
-          ? "transform:none"
-          : y === 1990
-            ? "transform:translateX(-100%)"
-            : "transform:translateX(-50%)"
-      }`;
-      if ((y - 1955) % 10 !== 0 && y !== 1955 && y !== 1990) {
-        lab.classList.add("tlLabelHideMobile");
-        lab.style.cssText += ";";
-        // mobile hide via media query class on section child - add attribute
-        lab.dataset.minorLabel = "1";
-      }
-      // Hide every other on mobile via CSS attribute
-      if ((y - 1955) / 5 % 2 === 1 && y !== 1955 && y !== 1990) {
-        lab.setAttribute("data-hide-sm", "");
-      }
-      ticksEl.appendChild(lab);
-    }
-  }
-
-  // Add mobile hide rule dynamically
-  const styleTag = document.createElement("style");
-  styleTag.textContent = `@media(max-width:767px){[data-hide-sm]{display:none!important}}`;
-  root.appendChild(styleTag);
 
   // Build tapes
   const tapes = [];
@@ -236,7 +193,6 @@ export function mountVasari(root) {
   let cy = my;
   let tiltX = 0;
   let tiltY = 0;
-  let tlYear = FILMS[active].year;
   let playScale = 1;
   let disposed = false;
   let raf = 0;
@@ -246,42 +202,81 @@ export function mountVasari(root) {
   function setCaption(film, dir = 1, instant = false) {
     const fields = [
       ["title", film.title],
-      ["sub", `${film.romaji} / ${film.kanji}`],
+      ["sub", film.romaji],
       ["meta", `${film.year} — ${film.genre}`],
     ];
     fields.forEach(([key, text]) => {
       const mask = root.querySelector(`[data-mask="${key}"]`);
       if (!mask) return;
-      const olds = [...mask.querySelectorAll("[data-line]")];
-      const span = document.createElement("span");
-      span.dataset.line = key;
-      span.className = olds[0]?.className || "";
-      span.textContent = text;
-      span.style.display = "block";
-      span.style.width = "100%";
-      mask.appendChild(span);
 
-      if (instant || reduced) {
-        olds.forEach((o) => o.remove());
-        span.style.transform = "none";
+      // Cancel in-flight line animations so fast scrolls don't leave stacked titles
+      [...mask.querySelectorAll("[data-line]")].forEach((el) => {
+        el.getAnimations().forEach((a) => a.cancel());
+      });
+
+      const olds = [...mask.querySelectorAll("[data-line]")];
+      if (olds.length === 1 && olds[0].textContent === text) {
+        olds[0].style.position = "relative";
+        olds[0].style.transform = "none";
+        olds[0].style.opacity = "1";
+        mask.style.height = "";
         return;
       }
 
+      // Keep only the latest line for exit; drop any backlog from rapid updates
+      const prev = olds.at(-1) || null;
+      olds.forEach((o) => {
+        if (o !== prev) o.remove();
+      });
+
+      const span = document.createElement("span");
+      span.dataset.line = key;
+      span.className = prev?.className || "";
+      span.textContent = text;
+      span.style.display = "block";
+      span.style.width = "100%";
+
+      if (instant || reduced || !prev) {
+        prev?.remove();
+        span.style.position = "relative";
+        span.style.transform = "none";
+        mask.style.height = "";
+        mask.appendChild(span);
+        return;
+      }
+
+      // Overlay so incoming/outgoing don't expand the mask into a title list
+      const h = prev.offsetHeight || mask.offsetHeight;
+      mask.style.height = `${h}px`;
+      prev.style.position = "absolute";
+      prev.style.left = "0";
+      prev.style.right = "0";
+      prev.style.top = "0";
+      span.style.position = "absolute";
+      span.style.left = "0";
+      span.style.right = "0";
+      span.style.top = "0";
       span.style.transform = `translateY(${dir * 105}%)`;
+      mask.appendChild(span);
+
       const a1 = span.animate(
         [{ transform: `translateY(${dir * 105}%)` }, { transform: "translateY(0)" }],
         { duration: 650, easing: EASE, fill: "forwards" }
       );
       anims.push(a1);
-      olds.forEach((old) => {
-        const from = old.style.transform || "translateY(0)";
-        const a2 = old.animate(
-          [{ transform: from }, { transform: `translateY(${-dir * 105}%)` }],
-          { duration: 650, easing: EASE, fill: "forwards" }
-        );
-        a2.onfinish = () => old.remove();
-        anims.push(a2);
-      });
+      const a2 = prev.animate(
+        [{ transform: "translateY(0)" }, { transform: `translateY(${-dir * 105}%)` }],
+        { duration: 650, easing: EASE, fill: "forwards" }
+      );
+      a2.onfinish = () => {
+        if (prev.isConnected) prev.remove();
+        if (mask.querySelectorAll("[data-line]").length === 1) {
+          span.style.position = "relative";
+          span.style.transform = "none";
+          mask.style.height = "";
+        }
+      };
+      anims.push(a2);
     });
   }
 
@@ -339,7 +334,7 @@ export function mountVasari(root) {
     T = Math.round(T);
     s = T;
 
-    root.querySelector("[data-d-sub]").textContent = `${film.romaji} / ${film.kanji}`;
+    root.querySelector("[data-d-sub]").textContent = film.romaji;
     root.querySelector("[data-d-title]").textContent = film.title;
     root.querySelector("[data-d-meta]").textContent = `${film.year} / ${film.genre} / ${film.min} min`;
     root.querySelector("[data-d-syn]").textContent = film.synopsis;
@@ -465,7 +460,7 @@ export function mountVasari(root) {
   let pointerId = null;
   function onPointerDown(e) {
     if (detailOpen) return;
-    if (e.target.closest("button,a,[data-btn],[data-tl-hit],[data-detail]")) return;
+    if (e.target.closest("button,a,[data-btn],[data-detail]")) return;
     dragging = true;
     dragMoved = false;
     dragStartX = e.clientX;
@@ -550,22 +545,6 @@ export function mountVasari(root) {
   shelf.addEventListener("wheel", onWheel, { passive: false });
   cleanups.push(() => shelf.removeEventListener("wheel", onWheel));
 
-  tlHit?.addEventListener("click", (e) => {
-    const rect = tlHit.getBoundingClientRect();
-    const t = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-    const year = 1955 + t * 35;
-    let best = 0;
-    let bestD = Infinity;
-    FILMS.forEach((f, i) => {
-      const dlt = Math.abs(f.year - year);
-      if (dlt < bestD) {
-        bestD = dlt;
-        best = i;
-      }
-    });
-    goTo(best);
-  });
-
   function onResize() {
     measure();
   }
@@ -575,8 +554,26 @@ export function mountVasari(root) {
   preloadSheets();
 
   let last = performance.now();
+  let visible = true;
+  const io = new IntersectionObserver(
+    ([entry]) => {
+      const next = !!entry?.isIntersecting;
+      if (next === visible) return;
+      visible = next;
+      if (visible) {
+        last = performance.now();
+        if (!disposed) raf = requestAnimationFrame(frame);
+      } else {
+        cancelAnimationFrame(raf);
+      }
+    },
+    { root: null, threshold: 0.08, rootMargin: "12% 0px" }
+  );
+  io.observe(root);
+  cleanups.push(() => io.disconnect());
+
   function frame(now) {
-    if (disposed) return;
+    if (disposed || !visible) return;
     raf = requestAnimationFrame(frame);
     let dt = (now - last) / 1000;
     if (dt > 0.05) dt = 0.05;
@@ -601,22 +598,6 @@ export function mountVasari(root) {
       active = nextActive;
       setCaption(FILMS[active], dir);
     }
-
-    // timeline year
-    const f0 = Math.floor(s);
-    const frac = s - f0;
-    const i0 = ((f0 % N) + N) % N;
-    const i1 = (i0 + 1) % N;
-    let yTarget;
-    if (FILMS[i0].year === 1989 && FILMS[i1].year === 1958) {
-      yTarget = frac < 0.5 ? FILMS[i0].year : FILMS[i1].year;
-    } else {
-      yTarget = lerp(FILMS[i0].year, FILMS[i1].year, frac);
-    }
-    if (Math.abs(yTarget - tlYear) > 6 || reduced) tlYear = yTarget;
-    else tlYear += (yTarget - tlYear) * (1 - Math.exp(-14 * dt));
-    const tlT = (tlYear - 1955) / 35;
-    if (dot) dot.style.left = `${tlT * 100}%`;
 
     // cursor smooth
     cx += (mx - cx) * (1 - Math.exp(-16 * dt));
@@ -660,28 +641,31 @@ export function mountVasari(root) {
       play.style.transform = `translate(0, -50%) scale(${playScale})`;
     }
 
-    // cursor states
+    // Hit-tests are expensive — only every other frame
+    if (!frame._hitToggle) frame._hitToggle = 0;
+    frame._hitToggle ^= 1;
+    if (frame._hitToggle) {
+      const hitEl = document.elementFromPoint(mx, my);
+      frame._overBtn = hitEl?.closest?.("[data-btn],a,button") || null;
+      frame._overTape = hitEl?.closest?.("[data-v]") || null;
+    }
+
     if (cursor && finePointer()) {
       cursor.classList.remove("open", "spine", "btn");
-      const overBtn = document.elementFromPoint(mx, my)?.closest?.("[data-btn],a,button");
       if (detailOpen) {
         /* keep default */
       } else if (onCover) cursor.classList.add("open");
-      else if (overBtn) cursor.classList.add("btn");
-      else {
-        const overTape = document.elementFromPoint(mx, my)?.closest?.("[data-v]");
-        if (overTape) {
-          const r = wrapRel(Number(overTape.dataset.v), s);
-          if (Math.abs(r) > 0.5) cursor.classList.add("spine");
-        }
+      else if (frame._overBtn) cursor.classList.add("btn");
+      else if (frame._overTape) {
+        const r = wrapRel(Number(frame._overTape.dataset.v), s);
+        if (Math.abs(r) > 0.5) cursor.classList.add("spine");
       }
     }
 
     // hover lift
     let hoverV = -1;
-    if (!detailOpen) {
-      const el = document.elementFromPoint(mx, my)?.closest?.("[data-v]");
-      if (el) hoverV = Number(el.dataset.v);
+    if (!detailOpen && frame._overTape) {
+      hoverV = Number(frame._overTape.dataset.v);
     }
 
     tapes.forEach((tape) => {

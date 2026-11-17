@@ -739,9 +739,35 @@ async function main() {
   let last = start;
   let readySet = false;
   let glintStart = -1;
+  let visible = true;
+  let pausedAt = 0;
+
+  const io = new IntersectionObserver(
+    ([entry]) => {
+      const nowVisible = !!entry?.isIntersecting;
+      if (nowVisible === visible) return;
+      visible = nowVisible;
+      if (visible) {
+        if (pausedAt) {
+          const gap = performance.now() - pausedAt;
+          start += gap;
+          last += gap;
+          pausedAt = 0;
+        }
+        if (!disposed) raf = requestAnimationFrame(frame);
+      } else {
+        pausedAt = performance.now();
+        cancelAnimationFrame(raf);
+      }
+    },
+    { root: null, threshold: 0.05, rootMargin: "10% 0px" }
+  );
+  io.observe(page);
+  cleanups.push(() => io.disconnect());
 
   function frame(now) {
     if (disposed) return;
+    if (!visible) return;
     raf = requestAnimationFrame(frame);
     let dt = (now - last) / 1000;
     if (dt > 0.05) dt = 0.05;
