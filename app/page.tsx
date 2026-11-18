@@ -3,6 +3,7 @@ import { DistillHero } from "@/components/distill";
 import { GalleryHero } from "@/components/gallery";
 import { Hero } from "@/components/hero";
 import HomeShell from "@/components/home-shell/HomeShell";
+import { NoaSection } from "@/components/noa";
 import { ReelmarkHero } from "@/components/reelmark";
 import { SiteNav } from "@/components/site-nav";
 import { VasariHero } from "@/components/vasari";
@@ -19,6 +20,7 @@ export default function HomePage() {
         <BlendyHero />
         <DistillHero />
         <GalleryHero />
+        <NoaSection />
       </main>
     </HomeShell>
   );

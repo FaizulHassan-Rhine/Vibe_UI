@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import styles from "./KolibriePage.module.css";
+import { OstraSection } from "@/components/ostra";
 import { VanteSection } from "@/components/vante";
 import {
   HERO_CARD_CROPS,
@@ -355,6 +356,7 @@ export default function KolibriePage() {
     </div>
 
     <VanteSection />
+    <OstraSection />
     </>
   );
 }
