@@ -1,5 +1,6 @@
 import { BlendyHero } from "@/components/blendy";
 import { DistillHero } from "@/components/distill";
+import { GalleryHero } from "@/components/gallery";
 import { Hero } from "@/components/hero";
 import HomeShell from "@/components/home-shell/HomeShell";
 import { ReelmarkHero } from "@/components/reelmark";
@@ -17,6 +18,7 @@ export default function HomePage() {
         <VasariHero />
         <BlendyHero />
         <DistillHero />
+        <GalleryHero />
       </main>
     </HomeShell>
   );

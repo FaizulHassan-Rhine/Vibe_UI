@@ -6,6 +6,7 @@ import {
   Inter_Tight,
   Newsreader,
   Noto_Sans_JP,
+  Playfair_Display,
 } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -66,6 +67,14 @@ const ibmPlexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  variable: "--font-playfair",
+  display: "swap",
+});
+
 const notoSansJp = Noto_Sans_JP({
   subsets: ["latin"],
   weight: ["500", "800"],
@@ -75,9 +84,9 @@ const notoSansJp = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "Noa · Reelmark · Leon Vasari · Blendy · Distill",
+  title: "Noa · Reelmark · Leon Vasari · Blendy · Distill · Gallery",
   description:
-    "Point-cloud portrait, Reelmark marketplace hero, Leon Vasari curved VHS archive, Blendy smoothie slider, and Distill AI-readability comparison.",
+    "Point-cloud portrait, Reelmark marketplace hero, Leon Vasari curved VHS archive, Blendy smoothie slider, Distill AI-readability comparison, and a 3D photo-globe gallery.",
 };
 
 export default function RootLayout({
@@ -88,7 +97,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} ${interTight.variable} ${caveat.variable} ${newsreader.variable} ${ibmPlexMono.variable} ${notoSansJp.variable}`}
+      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} ${inter.variable} ${interTight.variable} ${caveat.variable} ${newsreader.variable} ${ibmPlexMono.variable} ${playfair.variable} ${notoSansJp.variable}`}
     >
       <body>{children}</body>
     </html>

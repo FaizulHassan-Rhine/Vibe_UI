@@ -65,9 +65,13 @@ export default function StridePage() {
     let dispose: (() => void) | undefined;
     let cancelled = false;
     (async () => {
-      const { mountStride } = await import("./mountStride");
-      if (cancelled || !rootRef.current) return;
-      dispose = mountStride(rootRef.current, styles);
+      try {
+        const { mountStride } = await import("./mountStride");
+        if (cancelled || !rootRef.current) return;
+        dispose = mountStride(rootRef.current, styles);
+      } catch (err) {
+        console.warn("[stride] mount failed", err);
+      }
     })();
     return () => {
       cancelled = true;

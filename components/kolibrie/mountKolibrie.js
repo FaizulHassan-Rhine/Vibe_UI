@@ -206,7 +206,13 @@ export function mountKolibrie(root, styles) {
     document.body.style.background = prevBodyBg;
   });
 
-  function revealAll() {
+  function hideWipe() {
+    const wipe = q("[data-wipe]");
+    if (wipe) wipe.setAttribute("data-transition-ready", "");
+  }
+
+  // keepWipe: the signature scribble is still drawing — leave it on screen until it finishes.
+  function revealAll(keepWipe = false) {
     ready = true;
     document.documentElement.setAttribute("data-page-ready", "");
     root.classList.add(styles.isReady || "isReady");
@@ -224,15 +230,18 @@ export function mountKolibrie(root, styles) {
       el.style.visibility = "visible";
       el.style.transform = "";
     });
-    const wipe = q("[data-wipe]");
-    if (wipe) wipe.setAttribute("data-transition-ready", "");
+    if (!keepWipe) hideWipe();
   }
 
-  // Failsafe: never leave a black / empty screen.
+  // Failsafe: never leave a black / empty screen (wipe gets its own, later, failsafe).
   const failsafe = setTimeout(() => {
-    if (!ready) revealAll();
-  }, 2500);
-  cleanups.push(() => clearTimeout(failsafe));
+    if (!ready) revealAll(true);
+  }, 3500);
+  const wipeFailsafe = setTimeout(hideWipe, 7000);
+  cleanups.push(() => {
+    clearTimeout(failsafe);
+    clearTimeout(wipeFailsafe);
+  });
 
   // Fluid rem scale on html while this page is mounted
   const htmlEl = document.documentElement;
@@ -423,14 +432,15 @@ export function mountKolibrie(root, styles) {
 
     const tl = gsap.timeline({
       onComplete: () => {
-        if (!ready) revealAll();
+        if (!ready) revealAll(true);
+        hideWipe();
       },
     });
     tl.addLabel("reveal", 0.4);
     tl.call(
       () => {
         try {
-          revealAll();
+          revealAll(true);
           qa("[data-text-reveal]").forEach((el) => {
             const mode = el.getAttribute("data-text-reveal") || "chars";
             const group = el.closest("[data-text-reveal-group]");

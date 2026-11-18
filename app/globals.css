@@ -43,7 +43,8 @@ main > section {
 }
 
 /* Distill belt/canvas needs live layout every frame */
-main > section#distill {
+main > section#distill,
+main > section#gallery {
   content-visibility: visible;
   contain-intrinsic-size: none;
 }

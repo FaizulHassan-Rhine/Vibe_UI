@@ -1,0 +1,37 @@
+/* Vante — scoped under [data-vante] so Kolibrie styles stay intact */
+[data-vante]{
+  --bg:#faf3e4;
+  --ink:#1a1916;
+  --mid:#7a7872;
+  --line:rgba(26,25,22,.14);
+  position:relative;
+  z-index:5;
+  font-family:var(--font-inter-tight),'Inter Tight',system-ui,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+}
+[data-vante] *{box-sizing:border-box;margin:0;padding:0}
+[data-vante] #track{height:900vh}
+[data-vante] .stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;background:var(--bg)}
+[data-vante] .hl{position:absolute;left:0;right:0;font-weight:400;font-size:clamp(40px,6.7vw,130px);line-height:1;letter-spacing:-.055em;white-space:nowrap;text-align:center;will-change:transform}
+[data-vante] #l1{top:calc(50% - .98em)}
+[data-vante] #l2{top:calc(50% + .03em)}
+[data-vante] #l1 span,[data-vante] #l2 span{display:inline-block}
+[data-vante] #l1 span{margin-right:15vw}
+[data-vante] #l2 span{margin-left:15vw}
+[data-vante] #cap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:15em;text-align:center;font-size:clamp(9px,.74vw,13px);font-weight:500;line-height:1.3;letter-spacing:.03em;text-transform:uppercase;color:var(--ink)}
+[data-vante] #gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+[data-vante] .fx-fallback{
+  position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;
+}
+[data-vante] .fx-card{
+  position:absolute;top:0;left:0;overflow:hidden;border-radius:6px;
+  transform-origin:0 0;background:#131316;
+  opacity:0;will-change:transform,opacity;backface-visibility:visible;
+}
+[data-vante] .fx-card video{
+  display:block;width:100%;height:100%;object-fit:cover;
+}
+[data-vante] #rule{position:absolute;left:3.5vw;right:3.5vw;top:50%;height:1px;background:var(--line);transform-origin:left;transform:scaleX(0)}
+[data-vante] #name{position:absolute;left:0;top:0;padding:6px 11px;background:var(--ink);color:var(--bg);border-radius:99px;font-size:11.5px;font-weight:600;letter-spacing:.04em;pointer-events:none;opacity:0;transition:opacity .16s;white-space:nowrap;z-index:3}

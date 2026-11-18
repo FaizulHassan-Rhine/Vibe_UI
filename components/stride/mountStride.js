@@ -87,6 +87,923 @@ function matOpts(map) {
   };
 }
 
+function makeRenderer(canvas) {
+  const prefs = ["default", "low-power", "high-performance", null];
+  for (const powerPreference of prefs) {
+    const contextAttrs = {
+      alpha: true,
+      antialias: true,
+      depth: true,
+      stencil: false,
+      failIfMajorPerformanceCaveat: false,
+      ...(powerPreference ? { powerPreference } : {}),
+    };
+    try {
+      const gl =
+        canvas.getContext("webgl2", contextAttrs) ||
+        canvas.getContext("webgl", contextAttrs) ||
+        canvas.getContext("experimental-webgl", contextAttrs);
+      if (!gl) continue;
+      return new THREE.WebGLRenderer({
+        canvas,
+        context: gl,
+        antialias: true,
+        alpha: true,
+        failIfMajorPerformanceCaveat: false,
+        powerPreference: powerPreference || "default",
+      });
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+/** CSS fan when WebGL is blocked — same continuous pos/target carousel as the 3D path. */
+function mountStrideFallback(root, styles, els) {
+  const {
+    canvas,
+    hero,
+    arc,
+    reveal,
+    titleEl,
+    countEl,
+    playBtn,
+    autoBtn,
+    intro,
+    introVideo,
+    skipBtn,
+    logo,
+    nav,
+    rings,
+    inside,
+    inFront,
+    inBar,
+    inHead,
+    inNum,
+    inCap,
+    inDark,
+    inFrontFrame,
+    shop,
+    range,
+    stormEl,
+  } = els;
+  if (canvas) canvas.style.display = "none";
+
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const q = (sel) => root.querySelector(sel);
+  const qa = (sel) => [...root.querySelectorAll(sel)];
+  let disposed = false;
+  let vw = window.innerWidth;
+  let vh = window.innerHeight;
+  let phone = vw < 820;
+  let u = Math.min(vw / 1440, vh / 900);
+  let xSpread = 1;
+  let pos = reduced ? 1 : -2.6;
+  let target = 1;
+  let tween = null;
+  let autoOn = !reduced;
+  let lastInteract = performance.now();
+  let heroEntered = false;
+  let drag = null;
+  let raf = 0;
+  let revealAnim = null;
+  let insideStep = 0;
+  let flipAngle = 0;
+  let flipTween = null;
+  let stormBuilt = false;
+  let stormPieces = [];
+  let phoneScrolledCard = false;
+
+  const layer = document.createElement("div");
+  layer.style.cssText =
+    "position:absolute;inset:0;z-index:4;overflow:hidden;perspective:1600px;perspective-origin:50% 42%;touch-action:pan-y;cursor:grab";
+  // 11 pooled slots so the fan can scroll continuously like the WebGL pool
+  const pool = Array.from({ length: 11 }, () => {
+    const el = document.createElement("div");
+    el.style.cssText =
+      "position:absolute;left:0;top:0;border-radius:10px;box-shadow:0 28px 60px rgba(28,26,31,.28);will-change:transform,opacity;transform-origin:50% 100%;transform-style:preserve-3d;pointer-events:none;opacity:0";
+    layer.appendChild(el);
+    return { el, flavor: -1 };
+  });
+  (arc || hero || root).appendChild(layer);
+
+  // Traveler bar that scrolls from the hero fan → Inside → Shop
+  const traveler = document.createElement("div");
+  traveler.style.cssText =
+    "position:fixed;left:0;top:0;z-index:6;pointer-events:none;border-radius:10px;box-shadow:0 28px 60px rgba(28,26,31,.28);will-change:transform,opacity;transform-origin:50% 50%;opacity:0";
+  Object.assign(traveler.style, sheetCrop(FLAVORS[1].wrap, 4));
+  root.appendChild(traveler);
+  let travelerFlavor = 1;
+
+  const measureWord = (() => {
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d");
+    return (text, size = 100) => {
+      const fam =
+        getComputedStyle(root).getPropertyValue("--font-archivo-black").trim() ||
+        '"Archivo Black", sans-serif';
+      ctx.font = `400 ${size}px ${fam}`;
+      return ctx.measureText(text).width;
+    };
+  })();
+
+  function setTitleSize(name) {
+    if (!titleEl) return;
+    const words = name.toUpperCase().split(" ");
+    if (phone) {
+      const longest = Math.max(...words.map((w) => measureWord(w)));
+      titleEl.style.fontSize = `${Math.min(
+        Math.max(40, Math.min(vw * 0.125, 64)),
+        ((vw - 36) * 100) / longest,
+      )}px`;
+    } else {
+      const w = measureWord(name);
+      titleEl.style.fontSize = `${Math.min(96 * u, (760 * u * 100) / w)}px`;
+    }
+  }
+
+  function renderTitle(name, dir = 1, animate = true) {
+    if (!titleEl) return;
+    setTitleSize(name);
+    titleEl.innerHTML = "";
+    let li = 0;
+    name
+      .toUpperCase()
+      .split(" ")
+      .forEach((word) => {
+        const wrap = document.createElement("span");
+        wrap.className = styles.titleWord || "titleWord";
+        [...word].forEach((ch) => {
+          const s = document.createElement("span");
+          s.className = styles.titleCh || "titleCh";
+          s.textContent = ch;
+          if (animate && !reduced) {
+            s.style.opacity = "0";
+            s.style.transform = `translateY(${dir * 110}%)`;
+            s.style.transition = `transform 620ms cubic-bezier(.22,1,.36,1) ${120 + li * 22}ms, opacity 620ms cubic-bezier(.22,1,.36,1) ${120 + li * 22}ms`;
+          }
+          wrap.appendChild(s);
+          li++;
+        });
+        titleEl.appendChild(wrap);
+      });
+    if (animate && !reduced) {
+      requestAnimationFrame(() => {
+        titleEl.querySelectorAll(`.${styles.titleCh || "titleCh"}`).forEach((s) => {
+          s.style.opacity = "1";
+          s.style.transform = "translateY(0)";
+        });
+      });
+    }
+  }
+
+  function fadeOutTitle(dir, cb) {
+    if (reduced || !titleEl) {
+      cb?.();
+      return;
+    }
+    const letters = [...titleEl.querySelectorAll(`.${styles.titleCh || "titleCh"}`)];
+    if (!letters.length) {
+      cb?.();
+      return;
+    }
+    letters.forEach((s, i) => {
+      s.style.transition = `transform 300ms cubic-bezier(.45,0,.75,.3) ${i * 11}ms, opacity 300ms cubic-bezier(.45,0,.75,.3) ${i * 11}ms`;
+      s.style.opacity = "0";
+      s.style.transform = `translateY(${-dir * 110}%)`;
+    });
+    setTimeout(cb, 300 + letters.length * 11);
+  }
+
+  function setCount(n, animate = true) {
+    if (!countEl) return;
+    const text = String(n + 1).padStart(2, "0");
+    if (!animate || reduced) {
+      countEl.textContent = text;
+      return;
+    }
+    countEl.style.transition =
+      "opacity 220ms cubic-bezier(.5,0,.75,0), translate 220ms cubic-bezier(.5,0,.75,0)";
+    countEl.style.opacity = "0";
+    countEl.style.translate = "0 -10px";
+    setTimeout(() => {
+      countEl.textContent = text;
+      countEl.style.transition = "none";
+      countEl.style.translate = "0 14px";
+      requestAnimationFrame(() => {
+        countEl.style.transition =
+          "opacity 380ms cubic-bezier(.22,1,.36,1), translate 380ms cubic-bezier(.22,1,.36,1)";
+        countEl.style.opacity = "1";
+        countEl.style.translate = "0 0";
+      });
+    }, 60);
+  }
+
+  function startReveal(color) {
+    if (!reveal || reduced) {
+      root.style.setProperty("--flav", color);
+      return;
+    }
+    if (revealAnim) {
+      root.style.setProperty("--flav", revealAnim.color);
+      reveal.style.removeProperty("-webkit-mask-image");
+      reveal.style.removeProperty("mask-image");
+      reveal.style.setProperty("--rv", "transparent");
+    }
+    const hh = hero?.clientHeight || vh;
+    const cx = vw / 2;
+    const cy = phone ? hh * 0.4 : hh / 2 - 78 * u;
+    const R =
+      1.45 *
+      Math.max(
+        ...[
+          [0, 0],
+          [vw, 0],
+          [0, hh],
+          [vw, hh],
+        ].map(([x, y]) => Math.hypot(x - cx, y - cy)),
+      );
+    revealAnim = { color, t0: performance.now(), dur: 420, cx, cy, R };
+    reveal.style.setProperty("--rv", color);
+  }
+
+  function tickReveal(now) {
+    if (!revealAnim || !reveal) return;
+    const t = glide((now - revealAnim.t0) / revealAnim.dur);
+    const r = revealAnim.R * t;
+    const f = Math.max(60, 0.35 * r);
+    const mask = `radial-gradient(circle at ${revealAnim.cx}px ${revealAnim.cy}px, #000 ${Math.max(0, r - f)}px, transparent ${r}px)`;
+    reveal.style.webkitMaskImage = mask;
+    reveal.style.maskImage = mask;
+    if (t >= 1) {
+      root.style.setProperty("--flav", revealAnim.color);
+      reveal.style.setProperty("--rv", "transparent");
+      reveal.style.removeProperty("-webkit-mask-image");
+      reveal.style.removeProperty("mask-image");
+      revealAnim = null;
+    }
+  }
+
+  function onFlavorChange(fi, dir = 1) {
+    const f = FLAVORS[fi];
+    startReveal(f.color);
+    fadeOutTitle(dir, () => renderTitle(f.name, dir, true));
+    setCount(fi, true);
+    lastInteract = performance.now();
+  }
+
+  function goTo(to, { fromDrag = false } = {}) {
+    const prev = ((Math.round(target) % 5) + 5) % 5;
+    target = to;
+    const next = ((Math.round(target) % 5) + 5) % 5;
+    const dist = Math.abs(to - pos);
+    const dur = reduced
+      ? 0
+      : fromDrag
+        ? Math.max(380, 650 * Math.min(1, dist + 0.35))
+        : 650 + 160 * Math.max(0, Math.round(dist) - 1);
+    const from = pos;
+    const dir = to >= pos ? 1 : -1;
+    tween = null;
+    if (dur <= 0) {
+      pos = to;
+      if (next !== prev) onFlavorChange(next, dir);
+      return;
+    }
+    tween = { from, to, t0: performance.now(), dur, prev, next, dir, fired: false };
+  }
+
+  function placeDomBar(item, st, flav) {
+    const { el } = item;
+    const { x, y, h, rz, ry, op = 1 } = st;
+    if (op <= 0.01 || h < 2) {
+      el.style.opacity = "0";
+      return;
+    }
+    if (item.flavor !== flav) {
+      item.flavor = flav;
+      Object.assign(el.style, sheetCrop(FLAVORS[flav].wrap, 4));
+    }
+    const w = h / BH;
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    el.style.opacity = String(op);
+    el.style.zIndex = String(Math.round(40 + op * 20 - Math.abs(rz)));
+    el.style.transform = `translate3d(${x - w / 2}px,${y - h / 2}px,0) rotate(${rz}deg) rotateY(${ry}deg)`;
+  }
+
+  function arcState(k, now) {
+    const sign = k < 0 ? -1 : 1;
+    const s = slotAt(k);
+    const hh = hero?.clientHeight || vh;
+    const cx = vw / 2;
+    let cy = phone ? hh * 0.4 : hh / 2 - 78 * u;
+    if (phone) {
+      u = Math.min(vw / 560, hh / 980);
+      xSpread = 1.02;
+    } else {
+      u = Math.min(vw / 1440, vh / 900);
+      xSpread = 1;
+    }
+    let y = cy + s.dy * u;
+    let rz = s.rz * sign;
+    if (!reduced) {
+      const bob = Math.sin((now / 2400) * Math.PI * 2 + k * 0.7) * 5;
+      y += bob;
+      rz += Math.sin((now / 3100) * Math.PI * 2 + k) * 0.6;
+    }
+    const abs = Math.abs(k);
+    const op = abs > 3.2 ? 0 : abs > 2.4 ? lerp(1, 0, (abs - 2.4) / 0.8) : 1;
+    return {
+      x: cx + s.dx * u * xSpread * sign,
+      y,
+      h: s.h * u,
+      rz,
+      ry: s.ry * sign,
+      op,
+    };
+  }
+
+  function updateInsideFrames() {
+    const k = phone
+      ? Math.min(vw / 390, vh / 780)
+      : Math.min(vw / 1440, vh / 900);
+    root.style.setProperty("--k", String(k));
+    q("[data-in-back]")?.style.setProperty("--k", String(k));
+    inFrontFrame?.style.setProperty("--k", String(k));
+  }
+
+  function updateInsideText(step, fi, animate) {
+    if (!inHead || !inNum || !inCap) return;
+    const spec = INSIDE_STEPS[step];
+    const headLines =
+      spec.head ||
+      FLAVORS[fi].name
+        .toUpperCase()
+        .split(" ");
+    const capLines = spec.cap;
+    const apply = () => {
+      const long = headLines.some((w) => w.length > 9);
+      inHead.style.fontSize =
+        step === 3 && long ? (phone ? "29px" : "calc(88px * 0.72)") : "";
+      inHead.innerHTML = headLines.join("<br>");
+      inNum.textContent = String(step + 1).padStart(2, "0");
+      inCap.innerHTML = capLines.join("<br>");
+      qa("[data-in-icon]").forEach((el, i) => {
+        el.classList.toggle(styles.active || "active", i === step);
+        if (i === step) el.classList.add("active");
+        else el.classList.remove("active");
+      });
+    };
+    if (!animate || reduced) {
+      apply();
+      return;
+    }
+    const els = [inHead, inNum, inCap];
+    els.forEach((el) => {
+      el.style.transition =
+        "opacity 240ms cubic-bezier(.5,0,.75,0), translate 240ms cubic-bezier(.5,0,.75,0)";
+      el.style.opacity = "0";
+      el.style.translate = "0 -10px";
+    });
+    setTimeout(() => {
+      apply();
+      els.forEach((el) => {
+        el.style.transition = "none";
+        el.style.translate = "0 14px";
+        requestAnimationFrame(() => {
+          el.style.transition =
+            "opacity 460ms cubic-bezier(.22,1,.36,1), translate 460ms cubic-bezier(.22,1,.36,1)";
+          el.style.opacity = "1";
+          el.style.translate = "0 0";
+        });
+      });
+    }, 40);
+  }
+
+  function startFlip(toAngle) {
+    if (reduced) {
+      flipAngle = toAngle;
+      flipTween = null;
+      return;
+    }
+    const from = flipAngle;
+    const delta = toAngle - from;
+    if (Math.abs(delta) < 0.01) return;
+    const halfTurns = clamp(Math.abs(delta) / 180, 0.4, 2);
+    const dur = 720 * halfTurns;
+    flipTween = {
+      from,
+      to: toAngle,
+      t0: performance.now(),
+      dur,
+      textAt: Math.min(dur, 720) * 0.38,
+      textFired: false,
+    };
+  }
+
+  function ensureStorm() {
+    if (stormBuilt || !stormEl) return;
+    stormBuilt = true;
+    const fi = ((Math.round(target) % 5) + 5) % 5;
+    for (let i = 0; i < 18; i++) {
+      const bi = Math.random() < 0.8 ? FLAVORS[fi].bit : Math.floor(Math.random() * 5);
+      const el = document.createElement("div");
+      el.className = styles.stormPiece || "";
+      Object.assign(el.style, sheetCrop(BITS[bi], 0));
+      el.style.position = "absolute";
+      el.style.opacity = "0";
+      el.style.pointerEvents = "none";
+      stormEl.appendChild(el);
+      const a = (i / 18) * Math.PI * 2 + (Math.random() - 0.5) * 0.18;
+      const band = i % 3;
+      stormPieces.push({
+        el,
+        a,
+        spin: (i % 2 === 0 ? -1 : 1) * (160 + Math.random() * 180),
+        size: band === 0 ? 0.9 + Math.random() * 0.25 : 0.7 + Math.random() * 0.35,
+        orbit:
+          band === 0
+            ? 0.55 + Math.random() * 0.08
+            : band === 1
+              ? 0.72 + Math.random() * 0.08
+              : 0.88 + Math.random() * 0.08,
+      });
+    }
+  }
+
+  function updateStorm(qStorm) {
+    if (!stormEl || reduced || qStorm <= 0) {
+      stormPieces.forEach((p) => {
+        p.el.style.opacity = "0";
+      });
+      return;
+    }
+    ensureStorm();
+    const cx = vw / 2;
+    const cy = vh / 2;
+    const reach = Math.min(vw, vh) * 0.48;
+    stormPieces.forEach((p, i) => {
+      const t = clamp((qStorm - i * 0.012) / 0.7, 0, 1);
+      if (t <= 0) {
+        p.el.style.opacity = "0";
+        return;
+      }
+      const ang = p.a + qStorm * 0.9;
+      const r = reach * p.orbit * (0.35 + 0.65 * easeInOut(t));
+      const s = 70 * u * p.size;
+      p.el.style.width = `${s}px`;
+      p.el.style.height = `${s}px`;
+      p.el.style.opacity = String(Math.min(1, t * 1.4) * (1 - clamp((qStorm - 0.85) / 0.15, 0, 1)));
+      p.el.style.transform = `translate(${cx + Math.cos(ang) * r - s / 2}px,${cy + Math.sin(ang) * r - s / 2}px) rotate(${p.spin * qStorm}deg)`;
+    });
+  }
+
+  function rectCenter(el) {
+    if (!el) return { x: vw / 2, y: vh / 2, h: 200, w: 100 };
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height, w: r.width };
+  }
+
+  function placeTraveler(st, flav) {
+    if (travelerFlavor !== flav) {
+      travelerFlavor = flav;
+      Object.assign(traveler.style, sheetCrop(FLAVORS[flav].wrap, 4));
+    }
+    const { x, y, h, rz = 0, ry = 0, op = 1 } = st;
+    if (op <= 0.02 || h < 2) {
+      traveler.style.opacity = "0";
+      return;
+    }
+    const w = h / BH;
+    traveler.style.width = `${w}px`;
+    traveler.style.height = `${h}px`;
+    traveler.style.opacity = String(op);
+    traveler.style.transform = `translate3d(${x - w / 2}px,${y - h / 2}px,0) rotate(${rz}deg) rotateY(${ry}deg)`;
+  }
+
+  function frame(now) {
+    if (disposed) return;
+    raf = requestAnimationFrame(frame);
+
+    if (tween) {
+      const t = clamp((now - tween.t0) / tween.dur, 0, 1);
+      const e = tween.useEntrance ? 1 - Math.pow(1 - t, 3.2) : glide(t);
+      pos = lerp(tween.from, tween.to, e);
+      if (!tween.fired && t >= 0.12) {
+        tween.fired = true;
+        if (tween.next !== tween.prev) onFlavorChange(tween.next, tween.dir);
+      }
+      if (t >= 1) {
+        pos = tween.to;
+        tween = null;
+      }
+    }
+
+    if (flipTween) {
+      const t = clamp((now - flipTween.t0) / flipTween.dur, 0, 1);
+      flipAngle = lerp(flipTween.from, flipTween.to, sineInOut(t));
+      if (!flipTween.textFired && now - flipTween.t0 >= flipTween.textAt) {
+        flipTween.textFired = true;
+        const fi = ((Math.round(target) % 5) + 5) % 5;
+        updateInsideText(insideStep, fi, true);
+      }
+      if (t >= 1) {
+        flipAngle = flipTween.to;
+        flipTween = null;
+      }
+    }
+
+    tickReveal(now);
+
+    if (
+      autoOn &&
+      heroEntered &&
+      !drag &&
+      !tween &&
+      document.visibilityState === "visible"
+    ) {
+      const hr = (hero || root).getBoundingClientRect();
+      const visible = hr.bottom > vh * 0.2 && hr.top < vh * 0.8;
+      const ratio = Math.min(hr.bottom, vh) - Math.max(hr.top, 0);
+      if (visible && ratio / Math.max(1, hr.height) >= 0.55 && now - lastInteract > 3200) {
+        goTo(target + 1);
+        lastInteract = now;
+      }
+    }
+
+    const fi = ((Math.round(target) % 5) + 5) % 5;
+    const jT = Math.round(target);
+    const j0 = Math.floor(pos) - 5;
+
+    // ---- scroll-driven Inside / Shop ----
+    const secTop = inside?.getBoundingClientRect().top ?? vh;
+    const secH = inside?.offsetHeight || vh;
+    const pScroll = clamp(-secTop / Math.max(1, secH - vh), 0, 1);
+    const step = Math.floor(Math.min(pScroll, 0.72) / 0.18);
+    const qStorm = clamp((pScroll - 0.7) / 0.3, 0, 1);
+
+    if (step !== insideStep && step >= 0 && step <= 3) {
+      insideStep = step;
+      startFlip(INSIDE_STEPS[step].ry);
+      if (reduced) updateInsideText(step, fi, false);
+    }
+
+    if (inFront && inside) {
+      const secRect = inside.getBoundingClientRect();
+      let pinY = 0;
+      if (secRect.top > 0) pinY = secRect.top;
+      else if (secRect.bottom < vh) pinY = secRect.bottom - vh;
+      const intersects = secRect.bottom > 0 && secRect.top < vh;
+      inFront.classList.toggle(styles.on || "on", intersects);
+      if (intersects) inFront.classList.add("on");
+      else inFront.classList.remove("on");
+      inFront.style.transform = `translateY(${pinY}px)`;
+      inFront.style.opacity = "1";
+      const uiFade = 1 - clamp(3.2 * qStorm, 0, 1);
+      if (inFrontFrame) inFrontFrame.style.opacity = String(uiFade);
+      if (inNum) inNum.style.opacity = String(uiFade);
+      if (inDark) inDark.style.opacity = String(clamp(2.4 * qStorm, 0, 1) * 0.28);
+    }
+    updateStorm(qStorm);
+
+    const p1 = clamp(1 - secTop / vh, 0, 1);
+    const shopTop = shop?.getBoundingClientRect().top ?? vh * 2;
+    const p3 = clamp((vh - shopTop) / (0.7 * vh), 0, 1);
+    const heroFade = 1 - clamp(1.6 * p1, 0, 1);
+
+    for (let i = 0; i < 11; i++) {
+      const j = j0 + i;
+      const flav = ((j % 5) + 5) % 5;
+      const st = arcState(j - pos, now);
+      st.op *= heroFade;
+      // Hide the slot that the traveler owns
+      if (j === jT) st.op = 0;
+      placeDomBar(pool[i], st, flav);
+    }
+
+    // Traveler path: hero slot → inside pin → shop card
+    const kT = jT - pos;
+    let A = arcState(kT, now);
+    A.op = Math.max(A.op, heroFade > 0.05 ? 1 : 0) * (p1 < 0.98 ? 1 : 0);
+    // Convert arc (relative to hero/layer) to viewport coords — arcState already uses vw/vh centers
+    const inR = rectCenter(inBar);
+    const bob = reduced ? 0 : Math.sin((now / 2600) * Math.PI * 2) * 6;
+    const B = {
+      x: inR.x,
+      y: inR.y + bob,
+      h: Math.max(120, inR.h || 280 * u),
+      rz: 14,
+      ry: flipAngle + 400 * qStorm,
+      op: clamp(p1 * 1.4, 0, 1) * (1 - clamp(3 * qStorm, 0, 1) * 0.15),
+    };
+    const pk = q(`[data-pk="${fi}"]`);
+    const cardR = rectCenter(pk);
+    const C = {
+      x: cardR.x,
+      y: cardR.y,
+      h: Math.max(80, cardR.h || 200 * u),
+      rz: 0,
+      ry: Math.round(B.ry / 360) * 360,
+      op: clamp(p3 * 1.5, 0, 1),
+    };
+
+    if (phone && p3 > 0 && !phoneScrolledCard) {
+      phoneScrolledCard = true;
+      q(`[data-card="${fi}"]`)?.scrollIntoView({
+        inline: "center",
+        block: "nearest",
+        behavior: reduced ? "auto" : "smooth",
+      });
+    }
+
+    let st = { ...A, op: A.op * (p1 < 0.02 ? heroFade : 1) };
+    if (p1 > 0) {
+      const e = easeInOut(p1);
+      st = {
+        x: lerp(A.x, B.x, e),
+        y: lerp(A.y, B.y, e),
+        h: lerp(A.h, B.h, e),
+        rz: lerp(A.rz, B.rz, e),
+        ry: lerp(A.ry, B.ry, e),
+        op: lerp(A.op * heroFade, B.op, e),
+      };
+    }
+    if (p3 > 0) {
+      const e = easeInOut(p3);
+      st = {
+        x: lerp(st.x, C.x, e),
+        y: lerp(st.y, C.y, e),
+        h: lerp(st.h, C.h, e),
+        rz: lerp(st.rz, C.rz, e),
+        ry: lerp(st.ry, C.ry, e),
+        op: lerp(st.op, C.op, e),
+      };
+    }
+    // While still fully in the hero, keep traveler with the fan; hide duplicate
+    if (p1 <= 0.02) {
+      traveler.style.opacity = "0";
+      // show the center pool bar instead
+      const center = pool.find((_, i) => j0 + i === jT);
+      if (center) {
+        const s = arcState(0, now);
+        s.op = heroFade;
+        placeDomBar(center, s, fi);
+      }
+    } else {
+      placeTraveler(st, fi);
+    }
+  }
+
+  function enterHero() {
+    if (heroEntered) return;
+    heroEntered = true;
+    intro?.classList.add(styles.hide || "hide", "hide");
+    root.classList.remove(styles.locked || "locked", "locked");
+    document.body.classList.remove("locked");
+    document.body.style.overflow = "";
+    nav?.classList.add(styles.navIn || "navIn", "navIn");
+    rings?.classList.add(styles.in || "in", "in");
+    playBtn?.classList.add(styles.in || "in", "in");
+    countEl?.classList.add(styles.in || "in", "in");
+    autoBtn?.classList.add(styles.in || "in", "in");
+    root.querySelectorAll("[data-bit]").forEach((el, i) => {
+      el.style.animation = `none`;
+      el.animate(
+        [
+          { transform: `${el.style.transform} translate(0,0) rotate(0deg)` },
+          {
+            transform: `${el.style.transform} translate(${(i % 2 ? 10 : -12) * u}px, ${(i % 3) * -8 * u}px) rotate(${i % 2 ? 6 : -5}deg)`,
+          },
+          { transform: `${el.style.transform} translate(0,0) rotate(0deg)` },
+        ],
+        {
+          duration: 7000 + 900 * i,
+          iterations: Infinity,
+          easing: "ease-in-out",
+          composite: "add",
+        },
+      );
+    });
+    renderTitle(FLAVORS[1].name, 1, false);
+    setCount(1, false);
+    root.style.setProperty("--flav", FLAVORS[1].color);
+    if (reduced) {
+      pos = 1;
+      target = 1;
+    } else {
+      target = 1;
+      pos = -2.6;
+      tween = {
+        from: -2.6,
+        to: 1,
+        t0: performance.now(),
+        dur: 1700,
+        prev: 1,
+        next: 1,
+        dir: 1,
+        fired: true,
+        useEntrance: true,
+      };
+    }
+    lastInteract = performance.now();
+  }
+
+  function runIntro() {
+    root.classList.add(styles.locked || "locked", "locked");
+    document.body.classList.add("locked");
+    document.body.style.overflow = "hidden";
+    skipBtn?.addEventListener("click", enterHero);
+    if (reduced) {
+      enterHero();
+      return;
+    }
+    const video = introVideo;
+    const startAt = () => {
+      try {
+        video.currentTime = 0.55;
+        video.play().catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    };
+    if (video?.readyState >= 3) startAt();
+    else video?.addEventListener("canplay", startAt, { once: true });
+
+    let logoShown = false;
+    const showLogo = () => {
+      if (logoShown || heroEntered) return;
+      logoShown = true;
+      try {
+        video?.pause();
+      } catch {
+        /* ignore */
+      }
+      intro?.classList.add(styles.cream || "cream", "cream");
+      logo?.classList.add(styles.show || "show", "show");
+      setTimeout(() => {
+        if (!heroEntered) enterHero();
+      }, 650);
+    };
+    const onTime = () => {
+      if (video && video.currentTime >= 4.6) {
+        video.removeEventListener("timeupdate", onTime);
+        showLogo();
+      }
+    };
+    video?.addEventListener("timeupdate", onTime);
+    video?.addEventListener("ended", showLogo);
+    video?.addEventListener("error", showLogo);
+    setTimeout(() => {
+      if (!logoShown && !heroEntered) showLogo();
+    }, 3500);
+    setTimeout(() => {
+      if (!heroEntered) enterHero();
+    }, 9000);
+  }
+
+  const onPlay = () => {
+    goTo(target + 1);
+    lastInteract = performance.now();
+  };
+  const onAuto = () => {
+    autoOn = !autoOn;
+    autoBtn?.setAttribute("aria-pressed", autoOn ? "true" : "false");
+    const icon = root.querySelector("[data-auto-icon]");
+    if (icon) {
+      icon.innerHTML = autoOn
+        ? '<rect x="2" y="1.5" width="2" height="7" rx="0.6"/><rect x="6" y="1.5" width="2" height="7" rx="0.6"/>'
+        : '<path d="M3 1.5v7l6-3.5z" fill="#fff"/>';
+    }
+    lastInteract = performance.now();
+  };
+  const onResize = () => {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    phone = vw < 820;
+    u = Math.min(vw / 1440, vh / 900);
+    const fi = ((Math.round(target) % 5) + 5) % 5;
+    setTitleSize(FLAVORS[fi].name);
+    updateInsideFrames();
+  };
+
+  const slotPx = () => Math.max(180, 245 * u * xSpread);
+  const onPointerDown = (e) => {
+    if (!heroEntered) return;
+    drag = {
+      x0: e.clientX,
+      pos0: pos,
+      t0: performance.now(),
+      moved: false,
+    };
+    tween = null;
+    layer.style.cursor = "grabbing";
+    root.classList.add(styles.dragging || "dragging", "dragging");
+    try {
+      layer.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+  const onPointerMove = (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0;
+    if (Math.abs(dx) > 4) drag.moved = true;
+    pos = drag.pos0 - dx / slotPx();
+    lastInteract = performance.now();
+  };
+  const onPointerUp = (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0;
+    const dt = Math.max(16, performance.now() - drag.t0);
+    const v = -dx / dt;
+    drag = null;
+    layer.style.cursor = "grab";
+    root.classList.remove(styles.dragging || "dragging", "dragging");
+    const projected = pos - v * 180;
+    goTo(Math.round(projected), { fromDrag: true });
+    lastInteract = performance.now();
+  };
+
+  playBtn?.addEventListener("click", onPlay);
+  autoBtn?.addEventListener("click", onAuto);
+  window.addEventListener("resize", onResize);
+  layer.addEventListener("pointerdown", onPointerDown);
+  layer.addEventListener("pointermove", onPointerMove);
+  layer.addEventListener("pointerup", onPointerUp);
+  layer.addEventListener("pointercancel", onPointerUp);
+  autoBtn?.setAttribute("aria-pressed", autoOn ? "true" : "false");
+
+  qa("[data-in-icon]").forEach((btn, i) => {
+    btn.addEventListener("click", () => {
+      if (!inside) return;
+      const total = Math.max(1, inside.offsetHeight - vh);
+      window.scrollTo({
+        top: inside.offsetTop + (i * 0.18 + 0.02) * total,
+        behavior: reduced ? "auto" : "smooth",
+      });
+    });
+  });
+
+  const shopObs = shop
+    ? new IntersectionObserver(
+        (entries) => {
+          entries.forEach((en) => {
+            if (!en.isIntersecting) return;
+            q("[data-shop-head]")?.classList.add(styles.revealed || "revealed", "revealed");
+            q("[data-shop-cap]")?.classList.add(styles.revealed || "revealed", "revealed");
+            qa("[data-card]").forEach((c, i) => {
+              setTimeout(() => c.classList.add(styles.shown || "shown", "shown"), i * 80);
+            });
+            shopObs.disconnect();
+          });
+        },
+        { threshold: 0.18 },
+      )
+    : null;
+  if (shop && shopObs) shopObs.observe(shop);
+
+  const rangeObs = range
+    ? new IntersectionObserver(
+        (entries) => {
+          entries.forEach((en) => {
+            if (en.isIntersecting)
+              q("[data-range-head]")?.classList.add(styles.revealed || "revealed", "revealed");
+          });
+        },
+        { threshold: 0.2 },
+      )
+    : null;
+  if (range && rangeObs) rangeObs.observe(range);
+
+  updateInsideFrames();
+  updateInsideText(0, 1, false);
+  raf = requestAnimationFrame(frame);
+  runIntro();
+
+  return () => {
+    disposed = true;
+    cancelAnimationFrame(raf);
+    window.removeEventListener("resize", onResize);
+    playBtn?.removeEventListener("click", onPlay);
+    autoBtn?.removeEventListener("click", onAuto);
+    skipBtn?.removeEventListener("click", enterHero);
+    layer.removeEventListener("pointerdown", onPointerDown);
+    layer.removeEventListener("pointermove", onPointerMove);
+    layer.removeEventListener("pointerup", onPointerUp);
+    layer.removeEventListener("pointercancel", onPointerUp);
+    shopObs?.disconnect();
+    rangeObs?.disconnect();
+    layer.remove();
+    traveler.remove();
+    stormPieces.forEach((p) => p.el.remove());
+    root.classList.remove(styles.locked || "locked", "locked", styles.dragging || "dragging", "dragging");
+    document.body.classList.remove("locked");
+    document.body.style.overflow = "";
+  };
+}
+
 export function mountStride(root, styles) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const q = (sel) => root.querySelector(sel);
@@ -132,11 +1049,37 @@ export function mountStride(root, styles) {
   let u = Math.min(vw / 1440, vh / 900);
   let xSpread = 1;
 
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    alpha: true,
-  });
+  const renderer = makeRenderer(canvas);
+  if (!renderer) {
+    console.warn("[stride] WebGL unavailable — using DOM bar fan.");
+    return mountStrideFallback(root, styles, {
+      canvas,
+      hero,
+      arc,
+      reveal,
+      titleEl,
+      countEl,
+      playBtn,
+      autoBtn,
+      intro,
+      introVideo,
+      skipBtn,
+      logo,
+      nav,
+      rings,
+      inside,
+      inFront,
+      inBar,
+      inHead,
+      inNum,
+      inCap,
+      inDark,
+      inFrontFrame,
+      shop,
+      range,
+      stormEl,
+    });
+  }
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, phone ? 1.75 : 2));

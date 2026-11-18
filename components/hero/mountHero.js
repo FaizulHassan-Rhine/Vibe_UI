@@ -520,6 +520,314 @@ async function fetchModel(onProgress, signal) {
 const abort = new AbortController();
 cleanups.push(() => abort.abort());
 
+function showNoWebGLFallback() {
+  stage.dataset.fallback = "1";
+  page.dataset.phase = "ready";
+  counterEl.textContent = "";
+  labelEl.textContent = "";
+}
+
+/**
+ * Software renderer for browsers/GPUs where WebGL cannot be created.
+ * Draws the same 66,000 sampled dots with Canvas 2D: same camera, same
+ * light/head response, same assemble-from-ring entrance.
+ */
+function runCanvas2D(dots) {
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "width:100%;height:100%;display:block";
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) {
+    showNoWebGLFallback();
+    return;
+  }
+  stage.appendChild(canvas);
+  stage.dataset.canvas2d = "1";
+
+  const N = dots.length;
+  const hx = new Float32Array(N), hy = new Float32Array(N), hz = new Float32Array(N);
+  const nx = new Float32Array(N), ny = new Float32Array(N), nz = new Float32Array(N);
+  const rnd = new Float32Array(N), r2a = new Float32Array(N);
+  const part = new Uint8Array(N);
+  const ridge = new Float32Array(N), thin = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const d = dots[i];
+    hx[i] = d.wx; hy[i] = d.wy; hz[i] = d.wz;
+    nx[i] = d.nx; ny[i] = d.ny; nz[i] = d.nz;
+    rnd[i] = d.aRand;
+    const s = Math.sin(d.aRand * 91.7) * 43758.5453;
+    r2a[i] = s - Math.floor(s);
+    part[i] = d.part;
+    ridge[i] = d.ridge || 0;
+    thin[i] = d.thin || 0;
+  }
+
+  const NB = 16;
+  const bx = [], by = [], bs = [], bn = [];
+  for (let c = 0; c < 2 * NB; c++) {
+    bx.push(new Float32Array(N));
+    by.push(new Float32Array(N));
+    bs.push(new Float32Array(N));
+    bn.push(0);
+  }
+
+  const tan15 = Math.tan((15 * Math.PI) / 180);
+  const INK = "#c9d4b8";
+  const BLUE = "#7fa8a3";
+  const CREAM = "#f0e5c8";
+  const pointer = { x: 0, y: 0, has: false, px: 0, py: 0, t: 0 };
+  let W = 0, H = 0, dpr = 1;
+  let visible = true;
+  let stride = 1;
+  let costAvg = 0;
+  const start = performance.now();
+  let last = start;
+  let readySet = false;
+  const lightPos = { x: -1.4, y: 1.2, z: 1.6 };
+  const head = { x: 0, y: 0 };
+
+  function resize() {
+    W = root.clientWidth || window.innerWidth;
+    H = root.clientHeight || window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+  cleanups.push(() => window.removeEventListener("resize", resize));
+
+  const onMove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    pointer.px = e.clientX - rect.left;
+    pointer.py = e.clientY - rect.top;
+    pointer.has = true;
+    if (e.pointerType === "touch") pointer.t = performance.now();
+  };
+  const onLeave = () => { pointer.has = false; };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerdown", onMove);
+  document.addEventListener("pointerleave", onLeave);
+  window.addEventListener("blur", onLeave);
+  cleanups.push(() => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerdown", onMove);
+    document.removeEventListener("pointerleave", onLeave);
+    window.removeEventListener("blur", onLeave);
+  });
+
+  const io = new IntersectionObserver(
+    ([entry]) => { visible = !!entry?.isIntersecting; },
+    { threshold: 0.05, rootMargin: "10% 0px" },
+  );
+  io.observe(page);
+  cleanups.push(() => io.disconnect());
+
+  function frame(now) {
+    if (disposed) return;
+    raf = requestAnimationFrame(frame);
+    if (!visible) { last = now; return; }
+
+    const t0 = performance.now();
+    let dt = (now - last) / 1000;
+    if (dt > 0.05) dt = 0.05;
+    last = now;
+    const t = reduced ? 99 : (now - start) / 1000;
+    const assemble = reduced ? 1 : Math.min(1, t / 2.6);
+
+    if (!readySet && assemble > 0.55) {
+      readySet = true;
+      page.dataset.phase = "ready";
+    }
+
+    const aspect = W / H;
+    const distance = Math.max(2.35 / tan15, 1.7 / (tan15 * aspect));
+    const scale = (H / 2) / tan15;
+    const cxp = W / 2;
+    const cyp = H / 2;
+    const ringR = 92 / (scale / distance);
+
+    // Light + head targets (mirrors the WebGL path)
+    const usePointer = pointer.has || (pointer.t && now - pointer.t < 1500);
+    let lx, ly, lz = 2.6, htx, hty;
+    if (usePointer && !reduced) {
+      const span = tan15 * (distance - 2.6);
+      lx = pointer.x * span * aspect;
+      ly = -0.15 + pointer.y * span;
+      htx = pointer.x * 0.35;
+      hty = -pointer.y * 0.12;
+    } else {
+      const tt = reduced ? 0 : t;
+      lx = 1.2 * Math.sin(0.45 * tt);
+      ly = 0.5 + 0.8 * Math.cos(0.33 * tt);
+      htx = 0.35 * Math.sin(0.45 * tt);
+      hty = 0.12 * Math.cos(0.33 * tt);
+    }
+    const k = (rate) => 1 - Math.exp(-rate * dt);
+    lightPos.x += (lx - lightPos.x) * k(5);
+    lightPos.y += (ly - lightPos.y) * k(5);
+    lightPos.z += (lz - lightPos.z) * k(5);
+    head.x += (htx - head.x) * k(usePointer ? 3 : 1.5);
+    head.y += (hty - head.y) * k(usePointer ? 3 : 1.5);
+
+    const hyaw = head.x;
+    const hpit = -head.y;
+    const cY = Math.cos(hyaw), sY = Math.sin(hyaw);
+    const cX = Math.cos(hpit), sX = Math.sin(hpit);
+
+    // Shine sweep (same timing as shader path)
+    let shine = 99;
+    if (!reduced && t >= 2.34 && t <= 4.54) {
+      const s = (t - 2.34) / 2.2;
+      shine = 2.8 - (1 - (1 - s) * (1 - s)) * 7.4;
+    }
+
+    for (let c = 0; c < 2 * NB; c++) bn[c] = 0;
+
+    const sizeBase = Math.max(1.1, H / 640);
+    for (let i = 0; i < N; i += stride) {
+      const aR = rnd[i];
+      let x = hx[i], y = hy[i], z = hz[i];
+      let nxx = nx[i], nyy = ny[i], nzz = nz[i];
+
+      // Head turn about pivot (0,-1,0)
+      const hd = y <= -1.3 ? 0 : y >= -0.6 ? 1 : (() => { const u = (y + 1.3) / 0.7; return u * u * (3 - 2 * u); })();
+      if (hd > 0.001) {
+        const yaw = hyaw * (0.25 + 0.75 * hd);
+        const pit = hpit * hd;
+        const cy2 = Math.cos(yaw), sy2 = Math.sin(yaw);
+        const cx2 = Math.cos(pit), sx2 = Math.sin(pit);
+        // rotY
+        let px = x * cy2 + z * sy2;
+        let pz = -x * sy2 + z * cy2;
+        let py = y + 1;
+        // rotX about pivot
+        const py2 = py * cx2 - pz * sx2;
+        const pz2 = py * sx2 + pz * cx2;
+        x = px; y = py2 - 1; z = pz2;
+        const n1x = nxx * cy2 + nzz * sy2;
+        const n1z = -nxx * sy2 + nzz * cy2;
+        const n2y = nyy * cx2 - n1z * sx2;
+        const n2z = nyy * sx2 + n1z * cx2;
+        nxx = n1x; nyy = n2y; nzz = n2z;
+      }
+
+      const home_y = hy[i];
+      const homeX = hx[i];
+
+      // Assemble from ring
+      const tt = Math.min(1, Math.max(0, (assemble - aR * 0.45) / 0.55));
+      const e = tt < 0.5 ? 4 * tt * tt * tt : 1 - Math.pow(-2 * tt + 2, 3) / 2;
+      if (e < 1) {
+        const ang = aR * 6.28318530718;
+        const rad = ringR * (1 + (r2a[i] - 0.5) * 0.06);
+        const sx0 = Math.cos(ang) * rad;
+        const sy0 = -0.15 + Math.sin(ang) * rad;
+        const arcA = Math.sin(e * Math.PI) * 0.45;
+        x = sx0 + (x - sx0) * e + Math.sin(aR * 40 + t * 0.3) * arcA;
+        y = sy0 + (y - sy0) * e + Math.cos(aR * 31) * arcA;
+        z = z * e + (0.9 + r2a[i] * 1.4) * arcA;
+      } else {
+        const wob = Math.sin(t * 1.4 + aR * 60) * 0.006;
+        x += nxx * wob; y += nyy * wob; z += nzz * wob;
+      }
+
+      const depth = distance - z;
+      if (depth < 0.2) continue;
+      const inv = scale / depth;
+      const sx = cxp + x * inv;
+      const sy = cyp - (y + 0.15) * inv;
+      if (sx < -4 || sx > W + 4 || sy < -4 || sy > H + 4) continue;
+
+      // Lighting
+      const tlx = lightPos.x - x, tly = lightPos.y - y, tlz = lightPos.z - z;
+      const tl2 = tlx * tlx + tly * tly + tlz * tlz;
+      const tl = Math.sqrt(tl2) || 1;
+      const ndl = Math.max(0, (nxx * tlx + nyy * tly + nzz * tlz) / tl);
+      const lit = ndl / (1 + tl2 * 0.32);
+      const kd = Math.max(0, (nxx * -0.5 + nyy * 0.6 + nzz * 0.7) / 1.0488);
+      const facing = nzz;
+      const rim = Math.pow(1 - Math.abs(facing), 3);
+      let b = 0.3 + kd * 0.22 + lit * 1.5 + rim * 0.14;
+      const fs = Math.min(1, Math.max(0, (facing + 0.3) / 0.55));
+      b *= 0.55 + 0.45 * (fs * fs * (3 - 2 * fs));
+
+      const rg = ridge[i];
+      b *= rg > 0 ? 1 + rg * 0.7 : 1 + rg * 0.5;
+      b += thin[i] * (0.26 + kd * 0.3);
+
+      const p = part[i];
+      if (p > 1.5 && p < 2.5) b *= 0.9;
+      if (p > 2.5) b *= 0.78;
+      if (p > 3.5) b *= 0.7;
+      b *= 0.7 + r2a[i] * 0.5;
+
+      if (shine < 90) {
+        const band = (home_y - homeX * 0.5) - shine;
+        b += Math.exp(-band * band * 4) * 1.3;
+      }
+
+      const a = Math.min(1, b * 1.25) * (0.75 + 0.25 * e);
+      if (a < 0.04) continue;
+      const bi = Math.min(NB - 1, (a * NB) | 0);
+      const ci = (p > 3.5 ? NB : 0) + bi;
+      const s = sizeBase * (0.7 + r2a[i] * r2a[i] * 1.1) * (distance / depth);
+      const n = bn[ci]++;
+      bx[ci][n] = sx - s * 0.5;
+      by[ci][n] = sy - s * 0.5;
+      bs[ci][n] = s;
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#0f110d";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = "lighter";
+    for (let c = 0; c < 2 * NB; c++) {
+      const cnt = bn[c];
+      if (!cnt) continue;
+      ctx.globalAlpha = ((c % NB) + 0.5) / NB;
+      ctx.fillStyle = c >= NB ? BLUE : INK;
+      ctx.beginPath();
+      const X = bx[c], Y = by[c], S = bs[c];
+      for (let j = 0; j < cnt; j++) ctx.rect(X[j], Y[j], S[j], S[j]);
+      ctx.fill();
+    }
+
+    // Cursor light glow
+    if (usePointer && !reduced) {
+      const gx = pointer.px, gy = pointer.py;
+      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 120);
+      g.addColorStop(0, "rgba(240,229,200,0.55)");
+      g.addColorStop(0.15, "rgba(240,229,200,0.18)");
+      g.addColorStop(1, "rgba(240,229,200,0)");
+      ctx.globalAlpha = Math.min(1, assemble * 1.6);
+      ctx.fillStyle = g;
+      ctx.fillRect(gx - 120, gy - 120, 240, 240);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = CREAM;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+
+    // Adaptive density: keep ~30fps+ on slow software paths
+    const cost = performance.now() - t0;
+    costAvg = costAvg ? costAvg * 0.9 + cost * 0.1 : cost;
+    if (costAvg > 26 && stride < 4) { stride++; costAvg = 0; }
+  }
+  raf = requestAnimationFrame(frame);
+  cleanups.push(() => {
+    cancelAnimationFrame(raf);
+    if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+  });
+}
+
 async function main() {
   let buffer;
   try {
@@ -555,8 +863,51 @@ async function main() {
   if (!reduced) await new Promise((r) => setTimeout(r, 380));
   if (disposed) return;
 
-  // Renderer
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  // Renderer — try several context options; some GPUs/sandboxes reject high-performance.
+  function makeRenderer() {
+    const attrs = [
+      { powerPreference: "default" },
+      { powerPreference: "low-power" },
+      { powerPreference: "high-performance" },
+      {},
+    ];
+    for (const opts of attrs) {
+      const canvas = document.createElement("canvas");
+      const contextAttrs = {
+        alpha: false,
+        antialias: false,
+        depth: true,
+        stencil: false,
+        failIfMajorPerformanceCaveat: false,
+        ...opts,
+      };
+      try {
+        const gl =
+          canvas.getContext("webgl2", contextAttrs) ||
+          canvas.getContext("webgl", contextAttrs) ||
+          canvas.getContext("experimental-webgl", contextAttrs);
+        if (!gl) continue;
+        return new THREE.WebGLRenderer({
+          canvas,
+          context: gl,
+          antialias: false,
+          powerPreference: opts.powerPreference || "default",
+          failIfMajorPerformanceCaveat: false,
+        });
+      } catch {
+        /* try next */
+      }
+    }
+    return null;
+  }
+
+  const renderer = makeRenderer();
+  if (!renderer) {
+    // WebGL blocked (GPU blocklist / sandbox): draw the same dots in software.
+    console.warn("[hero] WebGL unavailable, using Canvas 2D renderer.");
+    runCanvas2D(dots);
+    return;
+  }
   renderer.setClearColor(0x0f110d, 1);
   stage.appendChild(renderer.domElement);
 

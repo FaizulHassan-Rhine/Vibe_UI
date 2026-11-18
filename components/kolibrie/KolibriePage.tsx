@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import styles from "./KolibriePage.module.css";
+import { VanteSection } from "@/components/vante";
 import {
   HERO_CARD_CROPS,
   HERO_PLATE,
@@ -61,6 +62,7 @@ export default function KolibriePage() {
   }, []);
 
   return (
+    <>
     <div ref={rootRef} className={styles.root} data-kolibrie>
       <div className={styles.wipe} data-wipe>
         <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden>
@@ -351,5 +353,8 @@ export default function KolibriePage() {
         </section>
       </main>
     </div>
+
+    <VanteSection />
+    </>
   );
 }

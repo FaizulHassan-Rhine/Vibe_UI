@@ -36,6 +36,13 @@
   display: block;
 }
 
+.stage[data-fallback="1"] {
+  background:
+    radial-gradient(ellipse 55% 70% at 50% 42%, rgba(127, 168, 163, 0.18), transparent 70%),
+    radial-gradient(ellipse 40% 50% at 50% 55%, rgba(201, 212, 184, 0.08), transparent 65%),
+    var(--color-night, #0f110d);
+}
+
 .loader {
   position: absolute;
   inset: 0;

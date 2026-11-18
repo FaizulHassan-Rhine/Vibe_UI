@@ -61,6 +61,17 @@ const LINKS = [
     ),
   },
   {
+    id: "gallery",
+    label: "Gallery",
+    href: "#gallery",
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <circle cx="12" cy="12" r="8" />
+        <path d="M4 12h16M12 4c2.6 2.4 2.6 13.6 0 16M12 4c-2.6 2.4-2.6 13.6 0 16" />
+      </svg>
+    ),
+  },
+  {
     id: "stride",
     label: "Stride",
     href: "/stride",
@@ -86,7 +97,7 @@ const LINKS = [
   },
 ] as const;
 
-const SECTION_IDS = ["noa", "reelmark", "vasari", "blendy", "distill"] as const;
+const SECTION_IDS = ["noa", "reelmark", "vasari", "blendy", "distill", "gallery"] as const;
 
 export default function SiteNav() {
   const dockRef = useRef<HTMLDivElement>(null);
@@ -162,7 +173,7 @@ export default function SiteNav() {
       <div className={styles.dock} ref={dockRef}>
         <span className={styles.hl} ref={hlRef} aria-hidden />
         {LINKS.map((l) =>
-          l.href.startsWith("/") ? (
+          l.href.startsWith("/") && !l.href.endsWith(".html") ? (
             <Link
               key={l.id}
               href={l.href}
@@ -175,6 +186,19 @@ export default function SiteNav() {
               {l.icon}
               <span className={styles.tip}>{l.label}</span>
             </Link>
+          ) : l.href.startsWith("/") ? (
+            <a
+              key={l.id}
+              href={l.href}
+              className={styles.link}
+              data-nav={l.id}
+              data-active={active === l.id ? "1" : "0"}
+              aria-label={l.label}
+              title={l.label}
+            >
+              {l.icon}
+              <span className={styles.tip}>{l.label}</span>
+            </a>
           ) : (
             <a
               key={l.id}
